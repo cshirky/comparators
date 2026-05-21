@@ -40,6 +40,16 @@ def _bucket(a: float, b: float) -> str:
     return "order of magnitude"
 
 
+def _ratio(a: float, b: float) -> float:
+    """Relative difference capped at 9.0 (= 10x apart)."""
+    if a == b:
+        return 0.0
+    lo, hi = min(a, b), max(a, b)
+    if lo == 0:
+        return 9.0
+    return min((hi - lo) / lo, 9.0)
+
+
 def _compare_pair(a: dict, b: dict) -> list[dict]:
     numeric_keys = sorted(
         k for k in set(a) | set(b)
@@ -54,6 +64,7 @@ def _compare_pair(a: dict, b: dict) -> list[dict]:
             "a": a[k],
             "b": b[k],
             "similarity": _bucket(float(a[k]), float(b[k])),
+            "ratio": round(_ratio(float(a[k]), float(b[k])), 4),
         }
         for k in numeric_keys
     ]

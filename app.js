@@ -137,8 +137,12 @@ const GROUPS = [
   { heading: "Money",                 fields: ["grad_debt_median", "net_price", "tuition_in_state", "tuition_out_of_state"] },
 ];
 
-function badgeClass(sim) {
-  return "badge badge-" + sim.replace(/ /g, "_");
+function badgeStyle(ratio) {
+  if (ratio == null) return "";
+  // log scale: ratio=0 → t=0 (blue), ratio=9 (10x) → t=1 (red)
+  const t = Math.min(1, Math.log(1 + ratio) / Math.log(10));
+  const hue = Math.round(220 * (1 - t));
+  return `background:hsl(${hue},70%,88%); color:hsl(${hue},55%,28%);`;
 }
 
 function fmt(v) {
@@ -161,7 +165,7 @@ function renderPairRows(comparisons) {
           <td>${c.label}</td>
           <td>${fmt(c.a)}</td>
           <td>${fmt(c.b)}</td>
-          <td><span class="${badgeClass(c.similarity)}">${c.similarity}</span></td>
+          <td><span class="badge" style="${badgeStyle(c.ratio)}">${c.similarity}</span></td>
         </tr>`)
       .join("");
     if (!rows) return "";
