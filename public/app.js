@@ -98,8 +98,19 @@ compareBtn.addEventListener("click", async () => {
   }
 });
 
-function badgeClass(sim) {
-  return "badge badge-" + sim.replace(/ /g, "_");
+function badgeStyle(ratio) {
+  if (ratio == null) return "";
+  const t = Math.min(1, Math.log(1 + ratio) / Math.log(10));
+  const hue = Math.round(220 * (1 - t));
+  return `background:hsl(${hue},70%,88%); color:hsl(${hue},55%,28%);`;
+}
+
+function similarityLabel(ratio) {
+  if (ratio == null) return "—";
+  if (ratio === 0) return "identical";
+  const mult = 1 + ratio;
+  if (mult >= 2) return `~${mult >= 10 ? Math.round(mult) : (Math.round(mult * 10) / 10)}x`;
+  return `+${Math.round(ratio * 100)}%`;
 }
 
 function fmt(v) {
@@ -130,7 +141,7 @@ function render(data) {
               <td>${c.label}</td>
               <td>${fmt(c.a)}</td>
               <td>${fmt(c.b)}</td>
-              <td><span class="${badgeClass(c.similarity)}">${c.similarity}</span></td>
+              <td><span class="badge" style="${badgeStyle(c.ratio)}">${similarityLabel(c.ratio)}</span></td>
             </tr>`).join("")}
         </tbody>
       </table>
