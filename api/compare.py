@@ -70,37 +70,38 @@ def _compare_pair(a: dict, b: dict) -> list[dict]:
     ]
 
 
+def handle_compare(unitids: list[str]) -> tuple[int, dict]:
+    if not (2 <= len(unitids) <= 5):
+        return 400, {"error": "Provide 2–5 unitids"}
+    try:
+        schools = {uid: fetch_school(uid) for uid in unitids}
+    except Exception as exc:
+        return 500, {"error": str(exc)}
+    progs = _programs_db()
+    schools_out = []
+    for uid, school in schools.items():
+        entry = {"unitid": uid, "name": school.get("inst_name", uid)}
+        entry["top_programs"] = progs.get(uid, [])
+        schools_out.append(entry)
+    pairs = [
+        {
+            "school_a": {"unitid": a, "name": schools[a].get("inst_name", a)},
+            "school_b": {"unitid": b, "name": schools[b].get("inst_name", b)},
+            "comparisons": _compare_pair(schools[a], schools[b]),
+        }
+        for i, a in enumerate(unitids)
+        for b in unitids[i + 1:]
+    ]
+    return 200, {"schools": schools_out, "pairs": pairs}
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         raw = params.get("unitids", [""])[0]
         unitids = [u.strip() for u in raw.split(",") if u.strip()]
-
-        if not (2 <= len(unitids) <= 5):
-            return self._json(400, {"error": "Provide 2–5 unitids"})
-
-        try:
-            schools = {uid: fetch_school(uid) for uid in unitids}
-        except Exception as exc:
-            return self._json(500, {"error": str(exc)})
-
-        progs = _programs_db()
-        schools_out = []
-        for uid, school in schools.items():
-            entry = {"unitid": uid, "name": school.get("inst_name", uid)}
-            entry["top_programs"] = progs.get(uid, [])
-            schools_out.append(entry)
-
-        pairs = [
-            {
-                "school_a": {"unitid": a, "name": schools[a].get("inst_name", a)},
-                "school_b": {"unitid": b, "name": schools[b].get("inst_name", b)},
-                "comparisons": _compare_pair(schools[a], schools[b]),
-            }
-            for i, a in enumerate(unitids)
-            for b in unitids[i + 1:]
-        ]
-        self._json(200, {"schools": schools_out, "pairs": pairs})
+        status, body = handle_compare(unitids)
+        self._json(status, body)
 
     def _json(self, status, body):
         payload = json.dumps(body).encode()

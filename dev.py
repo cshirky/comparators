@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local dev server. Serves public/ as static files and routes /api/* to handlers."""
+"""Local dev server. Serves root as static files and routes /api/* to handlers."""
 import json
 import mimetypes
 import os
@@ -9,10 +9,10 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "api"))
-from _school_data import fetch_school, FIELD_LABELS
-from compare import _compare_pair, _programs_db
+from school import handle_school
+from compare import handle_compare
 
-PUBLIC = Path(__file__).parent
+ROOT = Path(__file__).parent
 PORT = int(os.environ.get("PORT", 3000))
 
 
@@ -23,48 +23,16 @@ class DevServer(BaseHTTPRequestHandler):
         params = urllib.parse.parse_qs(parsed.query)
 
         if path == "/api/school":
-            self._handle_school(params)
+            unitid = params.get("unitid", [""])[0].strip()
+            status, body = handle_school(unitid)
+            self._json(status, body)
         elif path == "/api/compare":
-            self._handle_compare(params)
+            raw = params.get("unitids", [""])[0]
+            unitids = [u.strip() for u in raw.split(",") if u.strip()]
+            status, body = handle_compare(unitids)
+            self._json(status, body)
         else:
             self._static(path)
-
-    def _handle_school(self, params):
-        unitid = params.get("unitid", [""])[0].strip()
-        if not unitid:
-            return self._json(400, {"error": "unitid required"})
-        try:
-            data = fetch_school(unitid)
-            data["_labels"] = FIELD_LABELS
-            self._json(200, data)
-        except Exception as exc:
-            self._json(500, {"error": str(exc)})
-
-    def _handle_compare(self, params):
-        raw = params.get("unitids", [""])[0]
-        unitids = [u.strip() for u in raw.split(",") if u.strip()]
-        if not (2 <= len(unitids) <= 5):
-            return self._json(400, {"error": "Provide 2–5 unitids"})
-        try:
-            schools = {uid: fetch_school(uid) for uid in unitids}
-        except Exception as exc:
-            return self._json(500, {"error": str(exc)})
-        progs = _programs_db()
-        schools_out = []
-        for uid, school in schools.items():
-            entry = {"unitid": uid, "name": school.get("inst_name", uid)}
-            entry["top_programs"] = progs.get(uid, [])
-            schools_out.append(entry)
-        pairs = [
-            {
-                "school_a": {"unitid": a, "name": schools[a].get("inst_name", a)},
-                "school_b": {"unitid": b, "name": schools[b].get("inst_name", b)},
-                "comparisons": _compare_pair(schools[a], schools[b]),
-            }
-            for i, a in enumerate(unitids)
-            for b in unitids[i + 1:]
-        ]
-        self._json(200, {"schools": schools_out, "pairs": pairs})
 
     def _json(self, status, body):
         payload = json.dumps(body).encode()
@@ -77,7 +45,7 @@ class DevServer(BaseHTTPRequestHandler):
     def _static(self, path):
         if path in ("/", ""):
             path = "/index.html"
-        file_path = PUBLIC / path.lstrip("/")
+        file_path = ROOT / path.lstrip("/")
         if file_path.exists() and file_path.is_file():
             data = file_path.read_bytes()
             mime, _ = mimetypes.guess_type(str(file_path))
@@ -86,7 +54,7 @@ class DevServer(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
         else:
-            data = (PUBLIC / "index.html").read_bytes()
+            data = (ROOT / "index.html").read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
